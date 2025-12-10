@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 
 interface UseBarcodeScanner {
   isScanning: boolean;
   startScanning: () => Promise<void>;
-  stopScanning: () => void;
+  stopScanning: () => Promise<void>;
   lastScannedCode: string | null;
   error: string | null;
 }
@@ -16,19 +16,53 @@ export function useBarcodeScanner(
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scannerRef = useRef<any>(null);
+  const isTransitioningRef = useRef(false);
   const lastCodeRef = useRef<string | null>(null);
   const lastScanTimeRef = useRef<number>(0);
 
+  const stopScanning = useCallback(async () => {
+    if (!scannerRef.current || isTransitioningRef.current) return;
+    
+    try {
+      isTransitioningRef.current = true;
+      const state = scannerRef.current.getState();
+      // State 2 = SCANNING
+      if (state === 2) {
+        await scannerRef.current.stop();
+      }
+      setIsScanning(false);
+    } catch (err) {
+      console.log('Stop error:', err);
+    } finally {
+      isTransitioningRef.current = false;
+    }
+  }, []);
+
   const startScanning = useCallback(async () => {
+    if (isTransitioningRef.current) return;
+    
     try {
       setError(null);
+      isTransitioningRef.current = true;
       
-      // Dynamic import to avoid SSR issues
+      // Dynamic import
       const { Html5Qrcode } = await import('html5-qrcode');
       
-      if (!scannerRef.current) {
-        scannerRef.current = new Html5Qrcode(elementId);
+      // Stop existing scanner if running
+      if (scannerRef.current) {
+        try {
+          const state = scannerRef.current.getState();
+          if (state === 2) {
+            await scannerRef.current.stop();
+          }
+        } catch (e) {
+          // Ignore
+        }
+        scannerRef.current = null;
       }
+
+      // Create new scanner
+      scannerRef.current = new Html5Qrcode(elementId);
 
       await scannerRef.current.start(
         { facingMode: 'environment' },
@@ -39,7 +73,6 @@ export function useBarcodeScanner(
         },
         (decodedText: string) => {
           const now = Date.now();
-          // Prevent duplicate scans within 2 seconds
           if (decodedText !== lastCodeRef.current || now - lastScanTimeRef.current > 2000) {
             lastCodeRef.current = decodedText;
             lastScanTimeRef.current = now;
@@ -47,9 +80,7 @@ export function useBarcodeScanner(
             onScan(decodedText);
           }
         },
-        () => {
-          // Ignore scan errors (no QR/barcode found)
-        }
+        () => {}
       );
 
       setIsScanning(true);
@@ -57,26 +88,10 @@ export function useBarcodeScanner(
       const message = err instanceof Error ? err.message : 'Error al iniciar la cámara';
       setError(message);
       setIsScanning(false);
+    } finally {
+      isTransitioningRef.current = false;
     }
   }, [elementId, onScan]);
-
-  const stopScanning = useCallback(() => {
-    if (scannerRef.current && isScanning) {
-      scannerRef.current.stop().then(() => {
-        setIsScanning(false);
-      }).catch(() => {
-        setIsScanning(false);
-      });
-    }
-  }, [isScanning]);
-
-  useEffect(() => {
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-      }
-    };
-  }, []);
 
   return {
     isScanning,
