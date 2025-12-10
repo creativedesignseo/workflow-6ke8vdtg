@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
 
 interface UseBarcodeScanner {
   isScanning: boolean;
@@ -16,13 +15,16 @@ export function useBarcodeScanner(
   const [isScanning, setIsScanning] = useState(false);
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerRef = useRef<any>(null);
   const lastCodeRef = useRef<string | null>(null);
   const lastScanTimeRef = useRef<number>(0);
 
   const startScanning = useCallback(async () => {
     try {
       setError(null);
+      
+      // Dynamic import to avoid SSR issues
+      const { Html5Qrcode } = await import('html5-qrcode');
       
       if (!scannerRef.current) {
         scannerRef.current = new Html5Qrcode(elementId);
@@ -35,7 +37,7 @@ export function useBarcodeScanner(
           qrbox: { width: 280, height: 150 },
           aspectRatio: 1.777,
         },
-        (decodedText) => {
+        (decodedText: string) => {
           const now = Date.now();
           // Prevent duplicate scans within 2 seconds
           if (decodedText !== lastCodeRef.current || now - lastScanTimeRef.current > 2000) {
