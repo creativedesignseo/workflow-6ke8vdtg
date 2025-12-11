@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Product, ScanResult } from '@/types/product';
 
-const WORKFLOW_ID = '6ke8vdTgNQMnMfZe';
+const WEBHOOK_URL = 'https://n8n-01.adspubli.com/webhook/bbf53a2e-61df-40d3-b4cb-67ddfc7dcaa0';
 
 interface UseN8nWorkflow {
   executeWorkflow: (upc: string) => Promise<ScanResult>;
@@ -18,32 +18,40 @@ export function useN8nWorkflow(): UseN8nWorkflow {
     setError(null);
 
     try {
-      // This will be replaced with actual MCP tool call
-      // For now, we'll simulate the workflow execution
-      const response = await new Promise<ScanResult>((resolve) => {
-        setTimeout(() => {
-          // Simulated response - in production this calls the n8n workflow
-          resolve({
-            success: true,
-            product: {
-              id: crypto.randomUUID(),
-              upc,
-              name: `Producto ${upc.slice(-4)}`,
-              price: Math.floor(Math.random() * 100) + 10,
-              costPrice: Math.floor(Math.random() * 50) + 5,
-              profit: Math.floor(Math.random() * 30) + 5,
-              category: 'General',
-              brand: 'Marca Demo',
-              stock: 1,
-              scannedAt: new Date(),
-              isNew: Math.random() > 0.5,
-            },
-            isExisting: Math.random() > 0.5,
-          });
-        }, 1500);
+      const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ upc }),
       });
 
-      return response;
+      if (!response.ok) {
+        throw new Error(`Error del servidor: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Map n8n response to our Product format
+      const product: Product = {
+        id: crypto.randomUUID(),
+        upc,
+        name: data.nombre || data.name || `Producto ${upc.slice(-4)}`,
+        price: parseFloat(data.precio || data.price || 0),
+        costPrice: parseFloat(data.costo || data.costPrice || 0),
+        profit: parseFloat(data.ganancia || data.profit || 0),
+        category: data.categoria || data.category || 'General',
+        brand: data.marca || data.brand || '',
+        stock: parseInt(data.stock || data.cantidad || 1),
+        scannedAt: new Date(),
+        isNew: data.isNew ?? !data.existente,
+      };
+
+      return {
+        success: true,
+        product,
+        isExisting: data.existente ?? false,
+      };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al ejecutar el workflow';
       setError(message);
