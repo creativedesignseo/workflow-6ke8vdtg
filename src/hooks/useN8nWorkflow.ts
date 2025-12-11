@@ -23,7 +23,7 @@ export function useN8nWorkflow(): UseN8nWorkflow {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ chatInput: upc }),
+        body: JSON.stringify({ upc }),
       });
 
       if (!response.ok) {
