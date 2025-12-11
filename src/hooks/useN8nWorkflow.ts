@@ -35,14 +35,15 @@ export function useN8nWorkflow(): UseN8nWorkflow {
       // Map n8n response to our Product format
       const product: Product = {
         id: crypto.randomUUID(),
-        upc,
-        name: data.nombre || data.name || `Producto ${upc.slice(-4)}`,
-        price: parseFloat(data.precio || data.price || 0),
-        costPrice: parseFloat(data.costo || data.costPrice || 0),
-        profit: parseFloat(data.ganancia || data.profit || 0),
-        category: data.categoria || data.category || 'General',
-        brand: data.marca || data.brand || '',
-        stock: parseInt(data.stock || data.cantidad || 1),
+        upc: data.upc || upc,
+        name: data.title || data.nombre || `Producto ${upc.slice(-4)}`,
+        price: parseFloat(data.total_price || data.precio || 0),
+        costPrice: parseFloat(data.unit_price || data.costo || 0),
+        profit: parseFloat(data.total_price || 0) - parseFloat(data.unit_price || 0),
+        category: data.type || data.categoria || 'General',
+        brand: data.brand || data.marca || '',
+        imageUrl: data.images || '',
+        stock: parseInt(data.inventory_quantity || data.quantity || 1),
         scannedAt: new Date(),
         isNew: data.isNew ?? !data.existente,
       };
